@@ -11,9 +11,18 @@ variable "iso_file" {
   type = string
 }
 
+variable "id" {
+  type = string
+}
+
+variable "tags" {
+  type    = string
+  default = ""
+}
+
 variable "cloudinit_storage_pool" {
   type    = string
-  default = "local-lvm"
+  default = "local"
 }
 
 variable "cores" {
@@ -33,7 +42,7 @@ variable "disk_size" {
 
 variable "disk_storage_pool" {
   type    = string
-  default = "local-lvm"
+  default = "local-zfs"
 }
 
 variable "cpu_type" {
@@ -73,11 +82,20 @@ variable "proxmox_node" {
   type = string
 }
 
+variable "http_ip" {
+  type = string
+}
+
+variable "ssh_authorized_keys" {
+  type    = string
+  default = ""
+}
+
 source "proxmox-iso" "debian" {
   proxmox_url              = "https://${var.proxmox_host}/api2/json"
   insecure_skip_tls_verify = true
   username                 = var.proxmox_api_user
-  password                 = var.proxmox_api_password
+  token                    = var.proxmox_api_password
 
   template_description = "Built from ${basename(var.iso_file)} on ${formatdate("YYYY-MM-DD hh:mm:ss ZZZ", timestamp())}"
   node                 = var.proxmox_node
@@ -96,9 +114,9 @@ source "proxmox-iso" "debian" {
   }
   scsi_controller = "virtio-scsi-single"
 
-  http_directory = "./"
+  http_directory = "${path.root}/"
   boot_wait      = "10s"
-  boot_command   = ["<esc><wait>auto url=http://{{ .HTTPIP }}:{{ .HTTPPort }}/preseed.cfg<enter>"]
+  boot_command   = ["<esc><wait>auto url=http://${var.http_ip}:{{ .HTTPPort }}/preseed.cfg<enter>"]
   boot_iso {
     type = "scsi"
     iso_file = var.iso_file
@@ -109,6 +127,8 @@ source "proxmox-iso" "debian" {
   cloud_init_storage_pool = var.cloudinit_storage_pool
 
   vm_name  = trimsuffix(basename(var.iso_file), ".iso")
+  vm_id    = var.id
+  tags     = var.tags
   cpu_type = var.cpu_type
   os       = "l26"
   memory   = var.memory
@@ -120,13 +140,25 @@ source "proxmox-iso" "debian" {
   # once that is done - the password will be set to random one by cloud init.
   ssh_password = "packer"
   ssh_username = "root"
+  ssh_timeout  = "25m"
 }
 
 build {
   sources = ["source.proxmox-iso.debian"]
 
+  provisioner "shell" {
+    inline = [
+      "apt-get update -y",
+      "apt-get install -y qemu-guest-agent"
+    ]
+  }
+
   provisioner "file" {
     destination = "/etc/cloud/cloud.cfg"
-    source      = "cloud.cfg"
+    content     = templatefile("${path.root}/cloud.cfg", {
+      ssh_authorized_keys = var.ssh_authorized_keys
+    })
   }
 }
+
+
