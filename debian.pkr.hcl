@@ -149,9 +149,10 @@ build {
   provisioner "shell" {
     inline = [
       "apt-get update -y",
-      "apt-get install -y qemu-guest-agent ca-certificates curl gnupg lsb-release sudo vim htop rsync chrony",
+      "apt-get install -y qemu-guest-agent ca-certificates curl gnupg lsb-release sudo vim htop rsync chrony systemd-resolved",
       "systemctl enable qemu-guest-agent",
-      "systemctl enable fstrim.timer"
+      "systemctl enable fstrim.timer",
+      "systemctl enable systemd-resolved"
     ]
   }
 
@@ -183,24 +184,34 @@ build {
       "net.ipv4.ip_forward=1",
       "EOF",
       
-      # Configure custom DNS
+      # Configure DHCP client to use custom DNS (Debian way)
+      "cat <<EOF >> /etc/dhcp/dhclient.conf",
+      "supersede domain-name-servers 10.0.99.10, 10.0.99.11;",
+      "EOF",
+      
+      # Configure custom DNS with systemd-resolved
+      "mkdir -p /etc/systemd/resolved.conf.d",
       "cat <<EOF > /etc/systemd/resolved.conf.d/99-custom-dns.conf",
       "[Resolve]",
-      "DNS=10.0.99.10",
-      "FallbackDNS=10.0.99.11",
+      "DNS=10.0.99.10 10.0.99.11",
+      "FallbackDNS=",
       "Domains=~.",
       "DNSSEC=no",
       "EOF",
+      
+      # Start systemd-resolved
+      "systemctl start systemd-resolved",
+      
+      # Configure resolv.conf to use systemd-resolved
+      "rm -f /etc/resolv.conf",
+      "ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf",
       
       # Disable IPv6 (more carefully to avoid DNS issues)
       "cat <<EOF > /etc/sysctl.d/99-disable-ipv6.conf",
       "net.ipv6.conf.all.disable_ipv6=1",
       "net.ipv6.conf.default.disable_ipv6=1",
       "net.ipv6.conf.lo.disable_ipv6=0",
-      "EOF",
-      
-      # Ensure resolv.conf points to systemd-resolved
-      "ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf"
+      "EOF"
     ]
   }
 
