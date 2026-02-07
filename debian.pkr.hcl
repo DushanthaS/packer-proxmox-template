@@ -149,7 +149,58 @@ build {
   provisioner "shell" {
     inline = [
       "apt-get update -y",
-      "apt-get install -y qemu-guest-agent"
+      "apt-get install -y qemu-guest-agent ca-certificates curl gnupg lsb-release sudo vim htop rsync chrony",
+      "systemctl enable qemu-guest-agent",
+      "systemctl enable fstrim.timer"
+    ]
+  }
+
+  provisioner "shell" {
+    inline = [
+      # Clean cloud-init for template hygiene
+      "cloud-init clean",
+      "truncate -s 0 /etc/machine-id",
+      
+      # Performance tuning
+      "echo 'vm.swappiness=10' > /etc/sysctl.d/99-swappiness.conf",
+      
+      # Container-friendly settings
+      "cat <<EOF > /etc/sysctl.d/99-inotify.conf",
+      "fs.inotify.max_user_watches=524288",
+      "fs.inotify.max_user_instances=512",
+      "EOF",
+      
+      # Docker-ready kernel modules (don't load yet)
+      "cat <<EOF > /etc/modules-load.d/containers.conf",
+      "overlay",
+      "br_netfilter",
+      "EOF",
+      
+      # Container networking prep
+      "cat <<EOF > /etc/sysctl.d/99-containers.conf",
+      "net.bridge.bridge-nf-call-iptables=1",
+      "net.bridge.bridge-nf-call-ip6tables=1",
+      "net.ipv4.ip_forward=1",
+      "EOF",
+      
+      # Disable IPv6
+      "cat <<EOF > /etc/sysctl.d/99-disable-ipv6.conf",
+      "net.ipv6.conf.all.disable_ipv6=1",
+      "net.ipv6.conf.default.disable_ipv6=1",
+      "EOF"
+    ]
+  }
+
+  provisioner "shell" {
+    inline = [
+      # SSH hardening
+      "mkdir -p /etc/ssh/sshd_config.d",
+      "cat <<EOF > /etc/ssh/sshd_config.d/99-hardening.conf",
+      "PasswordAuthentication no",
+      "PermitRootLogin no",
+      "ChallengeResponseAuthentication no",
+      "UseDNS no",
+      "EOF"
     ]
   }
 

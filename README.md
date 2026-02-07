@@ -30,7 +30,7 @@ Templates are created by converting an existing VM to a template. As soon as the
 Here's how to do all that in one step:
 
 ```sh
-$ packer build -var-file example-variables.pkrvars.hcl .
+$ packer build -var-file variables.pkrvars.hcl .
 proxmox: output will be in this color.
 
 ==> proxmox: Creating VM
