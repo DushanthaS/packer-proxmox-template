@@ -183,11 +183,24 @@ build {
       "net.ipv4.ip_forward=1",
       "EOF",
       
-      # Disable IPv6
+      # Configure custom DNS
+      "cat <<EOF > /etc/systemd/resolved.conf.d/99-custom-dns.conf",
+      "[Resolve]",
+      "DNS=10.0.99.10",
+      "FallbackDNS=10.0.99.11",
+      "Domains=~.",
+      "DNSSEC=no",
+      "EOF",
+      
+      # Disable IPv6 (more carefully to avoid DNS issues)
       "cat <<EOF > /etc/sysctl.d/99-disable-ipv6.conf",
       "net.ipv6.conf.all.disable_ipv6=1",
       "net.ipv6.conf.default.disable_ipv6=1",
-      "EOF"
+      "net.ipv6.conf.lo.disable_ipv6=0",
+      "EOF",
+      
+      # Ensure resolv.conf points to systemd-resolved
+      "ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf"
     ]
   }
 
