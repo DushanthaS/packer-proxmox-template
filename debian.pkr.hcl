@@ -47,7 +47,7 @@ variable "disk_storage_pool" {
 
 variable "cpu_type" {
   type    = string
-  default = "kvm64"
+  default = "host"
 }
 
 variable "memory" {
@@ -93,7 +93,7 @@ variable "ssh_authorized_keys" {
 
 source "proxmox-iso" "debian" {
   proxmox_url              = "https://${var.proxmox_host}/api2/json"
-  insecure_skip_tls_verify = true
+  insecure_skip_tls_verify = true # Proxmox uses a self-signed certificate
   username                 = var.proxmox_api_user
   token                    = var.proxmox_api_password
 
@@ -149,7 +149,7 @@ build {
   provisioner "shell" {
     inline = [
       "apt-get update -y",
-      "apt-get install -y qemu-guest-agent ca-certificates curl gnupg lsb-release sudo vim htop rsync chrony systemd-resolved",
+      "apt-get install -y qemu-guest-agent ca-certificates curl gnupg lsb-release sudo vim htop rsync chrony systemd-resolved unzip git",
       "systemctl enable qemu-guest-agent",
       "systemctl enable fstrim.timer",
       "systemctl enable systemd-resolved"
@@ -222,7 +222,7 @@ build {
       "cat <<EOF > /etc/ssh/sshd_config.d/99-hardening.conf",
       "PasswordAuthentication no",
       "PermitRootLogin no",
-      "ChallengeResponseAuthentication no",
+      "KbdInteractiveAuthentication no",
       "UseDNS no",
       "EOF"
     ]
