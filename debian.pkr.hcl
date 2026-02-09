@@ -95,10 +95,9 @@ source "proxmox-iso" "debian" {
   template_description = "Built from ${basename(var.iso_file)} on ${formatdate("YYYY-MM-DD hh:mm:ss ZZZ", timestamp())}"
   node                 = var.proxmox_node
   network_adapters {
-    bridge   = "vmbr1"
+    bridge   = "vmbr0"
     firewall = true
     model    = "virtio"
-    vlan_tag = "20"
   }
   disks {
     disk_size    = var.disk_size
@@ -220,6 +219,27 @@ build {
       "KbdInteractiveAuthentication no",
       "UseDNS no",
       "EOF"
+    ]
+  }
+
+  provisioner "shell" {
+    inline = [
+      # Reconfigure network for vmbr1 with VLAN 20 (post-installation)
+      "echo 'Preparing network configuration for vmbr1/VLAN 20'",
+      
+      # Update cloud-init network config for vmbr1
+      "cat <<EOF > /etc/cloud/cloud.cfg.d/99-network.cfg",
+      "network:",
+      "  version: 2",
+      "  ethernets:",
+      "    ens18:",
+      "      dhcp4: true",
+      "      dhcp6: false",
+      "      nameservers:",
+      "        addresses: [10.0.99.10, 10.0.99.11]",
+      "EOF",
+      
+      "echo 'Network will be reconfigured to vmbr1/VLAN20 on first boot'"
     ]
   }
 
