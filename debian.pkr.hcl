@@ -55,11 +55,6 @@ variable "memory" {
   default = "2048"
 }
 
-variable "network_vlan" {
-  type    = string
-  default = ""
-}
-
 variable "machine_type" {
   type    = string
   default = ""
@@ -100,10 +95,10 @@ source "proxmox-iso" "debian" {
   template_description = "Built from ${basename(var.iso_file)} on ${formatdate("YYYY-MM-DD hh:mm:ss ZZZ", timestamp())}"
   node                 = var.proxmox_node
   network_adapters {
-    bridge   = "vmbr0"
+    bridge   = "vmbr1"
     firewall = true
     model    = "virtio"
-    vlan_tag = var.network_vlan
+    vlan_tag = "20"
   }
   disks {
     disk_size    = var.disk_size
