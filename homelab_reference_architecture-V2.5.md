@@ -1,4 +1,4 @@
-# Homelab Reference Architecture V2.4
+# Homelab Reference Architecture V2.5
 
 This document is a **canonical reference** for the homelab. It is designed to be:
 - Easy for an LLM to parse and reason about
@@ -33,8 +33,8 @@ When ambiguity exists, **this document is the source of truth**.
 - CPU: Dual Xeon E5-2630 v4 (20 cores total)
 - RAM: 96 GB
 - iDRAC: **Port 1/1/46 (R730-iDRAC)** — VLAN 99
-- NIC0 (Mgmt): enp1s0f0 → 1 GbE → VLAN 99 untagged
-- NIC5 (Data): enxe41d2de5d822 → 40 GbE Mellanox ConnectX-3 → VLAN trunk (10,20,30,40,50,60,99) — **Port 1/2/6 (PVE-R730-40G-Core)**
+- NIC0 (Mgmt): enp1s0f0 → 1 GbE → VLAN 99 untagged → **vmbr0** (10.0.99.90)
+- NIC5 (Data): enxe41d2de5d822 → 40 GbE Mellanox ConnectX-3 → **vmbr1** VLAN trunk tagged (20,60,99) — **Port 1/2/6 (PVE-R730-40G-Core)**
 
 ### 2.2 Storage — TrueNAS SCALE ("Hyperion")
 - Platform: **TrueNAS SCALE (25.10.x - Goldeye)**
@@ -178,9 +178,9 @@ This preserves:
 ### 5.4 Video Surveillance System
 
 #### Frigate NVR
-- **Host:** LXC/Docker on Proxmox (10.0.20.4)
+- **Host:** LXC/Docker on Proxmox (10.0.20.5)
 - **Hardware Acceleration:** Intel VAAPI + Google Coral TPU (PCIe)
-- **MQTT Broker:** 10.0.20.4:1883
+- **MQTT Broker:** 10.0.20.5:1883
 - **Database:** /db/frigate.db
 - **Features Enabled:**
   - Semantic Search (small model)
@@ -296,9 +296,8 @@ Block: VLAN 15 → any (implicit deny)
 - Config upload/download via dedicated port
 
 ### 7.4 Port Policy
-- Atlas (Proxmox) + Hyperion (TrueNAS) ports:
-  - dual-mode 20
-  - tagged: 60, 99
+- Atlas (Proxmox) + Hyperion (TrueNAS) 40G ports:
+  - tagged: 20, 60, 99
 - Omada AP ports:
   - Trunk ports
   - Tagged VLANs: 10, 15, 30, 40, 50, 99
@@ -429,7 +428,7 @@ If routing decisions are required → they belong in **OPNsense**, not the switc
 
 ### 9.3 Administration Model (Tiered Security)
 - **Command PC (VLAN 50):** Primary workstation sits on VLAN 50 (Trusted)
-- **Access Rule:** Firewall permits **Single Host (Command PC)** → **VLAN 99 (Mgmt)** on specific ports (443, 80, 22, ICMP)
+- **Access Rule:** Firewall permits **Single Host (Command PC)** → **VLAN 99 (Mgmt)** on specific ports (443, 80, 22, 8006, ICMP)
 - **Emergency Access:** 192.168.1.0/24 on em0 — direct wire bypass for router recovery
 - **Isolation:**
   - VLAN 99 does **not** have internet access (except specific update mirrors)
@@ -463,15 +462,15 @@ If routing decisions are required → they belong in **OPNsense**, not the switc
 
 | # | Source | Destination | Port | Proto | Action | Description |
 |---|--------|-------------|------|-------|--------|-------------|
-| 1 | 10.0.20.4 (Frigate) | 10.0.10.0/24 | 554 | TCP | Allow | RTSP to wired cameras |
-| 2 | 10.0.20.4 (Frigate) | 10.0.10.0/24 | 1935 | TCP | Allow | RTMP to Reolink cams |
-| 3 | 10.0.20.4 (Frigate) | 10.0.10.0/24 | 8554 | TCP | Allow | go2rtc restream |
-| 4 | 10.0.20.4 (Frigate) | 10.0.30.15 | 80,1935 | TCP | Allow | Doorbell HTTP-FLV |
-| 5 | 10.0.10.0/24 | 10.0.20.4 | 1883 | TCP | Allow | MQTT events |
+| 1 | 10.0.20.5 (Frigate) | 10.0.10.0/24 | 554 | TCP | Allow | RTSP to wired cameras |
+| 2 | 10.0.20.5 (Frigate) | 10.0.10.0/24 | 1935 | TCP | Allow | RTMP to Reolink cams |
+| 3 | 10.0.20.5 (Frigate) | 10.0.10.0/24 | 8554 | TCP | Allow | go2rtc restream |
+| 4 | 10.0.20.5 (Frigate) | 10.0.30.15 | 80,1935 | TCP | Allow | Doorbell HTTP-FLV |
+| 5 | 10.0.10.0/24 | 10.0.20.5 | 1883 | TCP | Allow | MQTT events |
 | 6 | 10.0.10.0/24 | RFC1918 | Any | Any | Block | Cameras can't reach other VLANs |
 | 7 | 10.0.10.0/24 | WAN | Any | Any | Block | Cameras isolated from internet |
-| 8 | 10.0.50.0/24 | 10.0.20.4 | 5000,8971 | TCP | Allow | Frigate UI from Trusted |
-| 9 | 10.0.40.0/24 | 10.0.20.4 | 5000,8971 | TCP | Allow | Frigate UI from Family |
+| 8 | 10.0.50.0/24 | 10.0.20.5 | 5000,8971 | TCP | Allow | Frigate UI from Trusted |
+| 9 | 10.0.40.0/24 | 10.0.20.5 | 5000,8971 | TCP | Allow | Frigate UI from Family |
 
 ---
 
@@ -567,9 +566,10 @@ flowchart TB
     end
 
     subgraph VLAN20["VLAN 20 - Servers"]
-        Frigate[Frigate NVR<br/>10.0.20.4<br/>Coral TPU + VAAPI]
-        TrueNAS[TrueNAS Hyperion<br/>10.0.20.X]
-        Proxmox[Proxmox Atlas<br/>10.0.99.9]
+        Frigate[Frigate NVR<br/>10.0.20.5<br/>Coral TPU + VAAPI]
+        TrueNAS[TrueNAS Hyperion<br/>10.0.20.x]
+        DockerFleet[Docker Host Fleet<br/>10.0.20.20-29]
+        KomodoCore[Komodo Core<br/>10.0.20.x]
     end
 
     subgraph VLAN30["VLAN 30 - IoT"]
@@ -580,6 +580,7 @@ flowchart TB
     end
 
     subgraph VLAN99["VLAN 99 - Management"]
+        Atlas[Proxmox Atlas<br/>10.0.99.90]
         DNS1[Technitium DNS<br/>10.0.99.10]
         DNS2[Pi DNS Backup<br/>10.0.99.11]
         PDU[CyberPower PDU<br/>10.0.99.6]
@@ -626,7 +627,7 @@ flowchart LR
         C6[Basement-C200<br/>RTSP :554]
     end
 
-    subgraph Frigate["Frigate NVR (10.0.20.4)"]
+    subgraph Frigate["Frigate NVR (10.0.20.5)"]
         direction TB
         GO2RTC[go2rtc<br/>Stream Proxy]
         DETECT[Detection<br/>Coral TPU]
@@ -689,9 +690,12 @@ flowchart LR
 | OC200 Controller | 10.0.99.3 | 99 | WiFi Controller |
 | EAP245 | 10.0.99.2 | 99 | Living Room AP |
 | EAP235-Wall | 10.0.99.100 | 99 | Upstairs AP |
-| TrueNAS (Data) | 10.0.20.4 | 20 | Primary data interface |
+| TrueNAS (Data) | 10.0.20.x | 20 | Primary data interface |
 | TrueNAS (Storage) | 10.0.60.10 | 60 | NFS only |
-| Proxmox (Data) | 10.0.20.x | 20 | VM network |
+| Proxmox Atlas (Mgmt) | 10.0.99.90 | 99 | NIC0/vmbr0 |
+| Proxmox Atlas (Data) | vmbr1 | 20,60,99 | NIC5/VLAN trunk |
+| Docker Host Fleet | 10.0.20.20-29 | 20 | Convention-based (fleet-create.yml) |
+| Komodo Core | 10.0.20.x | 20 | Planned migration from VLAN 99 |
 | Command PC | 10.0.50.2 | 50 | Admin workstation |
 | OPNsense Emergency | 192.168.1.1 | N/A | Direct wire access |
 
@@ -713,7 +717,11 @@ flowchart LR
 | IP | Hostname | Device | Notes |
 |----|----------|--------|-------|
 | 10.0.20.1 | - | Gateway (OPNsense) | - |
-| 10.0.20.4 | Frigate | NVR + MQTT | Coral TPU, VAAPI |
+| 10.0.20.5 | Frigate | NVR + MQTT | Coral TPU, VAAPI |
+| 10.0.20.x | Komodo Core | Container management | Planned migration from VLAN 99 |
+| 10.0.20.20 | docker-host-01 | Docker host (fleet) | VMID 201 |
+| 10.0.20.21 | docker-host-02 | Docker host (fleet) | VMID 202 |
+| 10.0.20.22 | docker-host-03 | Docker host (fleet) | VMID 203 |
 | 10.0.20.X | ntopng | Traffic analysis | Planned |
 
 ### VLAN 30 - IoT (10.0.30.0/24)
@@ -732,5 +740,5 @@ flowchart LR
 ---
 
 *Document Version: 2.5*
-*Last Updated: 2026-02-08*
-*Changes: Added video surveillance infrastructure, updated WiFi channel plan, camera inventory*
+*Last Updated: 2026-02-09*
+*Changes: Fixed Frigate IP (10.0.20.5), fixed Proxmox Atlas NIC/VLAN config, added docker host fleet (10.0.20.20-29), planned Komodo Core migration to VLAN 20, added port 8006 to admin access rule, fixed Mermaid diagram*
