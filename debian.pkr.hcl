@@ -22,7 +22,7 @@ variable "tags" {
 
 variable "cloudinit_storage_pool" {
   type    = string
-  default = "local"
+  default = "local-zfs"
 }
 
 variable "cores" {
@@ -42,7 +42,7 @@ variable "disk_size" {
 
 variable "disk_storage_pool" {
   type    = string
-  default = "local-zfs"
+  default = "vmdata"
 }
 
 variable "cpu_type" {
@@ -219,27 +219,6 @@ build {
       "KbdInteractiveAuthentication no",
       "UseDNS no",
       "EOF"
-    ]
-  }
-
-  provisioner "shell" {
-    inline = [
-      # Reconfigure network for vmbr1 with VLAN 20 (post-installation)
-      "echo 'Preparing network configuration for vmbr1/VLAN 20'",
-      
-      # Update cloud-init network config for vmbr1
-      "cat <<EOF > /etc/cloud/cloud.cfg.d/99-network.cfg",
-      "network:",
-      "  version: 2",
-      "  ethernets:",
-      "    ens18:",
-      "      dhcp4: true",
-      "      dhcp6: false",
-      "      nameservers:",
-      "        addresses: [10.0.99.10, 10.0.99.11]",
-      "EOF",
-      
-      "echo 'Network will be reconfigured to vmbr1/VLAN20 on first boot'"
     ]
   }
 
