@@ -108,6 +108,12 @@ source "proxmox-iso" "debian" {
   }
   scsi_controller = "virtio-scsi-single"
 
+  # Enable the agent on the VM config (pairs with the qemu-guest-agent package
+  # installed below) so Proxmox can fs-freeze for consistent vzdump/PBS backups
+  # and do graceful shutdowns. Clones inherit this; without it the in-guest
+  # agent is installed but unused.
+  qemu_agent = true
+
   http_directory = "${path.root}/"
   boot_wait      = "10s"
   boot_command   = ["<esc><wait>auto url=http://${var.http_ip}:{{ .HTTPPort }}/preseed.cfg<enter>"]
